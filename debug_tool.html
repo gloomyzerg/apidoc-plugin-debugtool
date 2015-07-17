@@ -1,0 +1,156 @@
+<div class="page-header">
+  <h1>API 调试工具 <small>仅供开发测试使用</small></h1>
+</div>
+
+<table class="table">
+  <tbody>
+    <tr>
+      <td>API类目</td>
+      <td>
+        <select id="group"></select>
+      </td>
+    </tr>
+    <tr>
+      <td>API名称</td>
+      <td>
+        <select id="title"></select>
+      </td>
+    </tr>
+    <tr>
+      <td>提交方式</td>
+      <td><span id="method"></span></td>
+    </tr>
+    <tr>
+      <td>AppKey</td>
+      <td><input type="password" class="form-control" id="AppKey" value="cnal"></td>
+    </tr>
+    <tr>
+      <td>AppSecret</td>
+      <td><input type="password" class="form-control" id="AppSecret" value="cnalapipassword"></td>
+    </tr>
+    <tr>
+      <td colspan="2">将鼠标移至说明上，查看参数介绍；<span style="color:red;">*</span> 表示必填</td>
+    </tr>
+  </tbody>
+  <tbody id="fields"></tobdy>
+  <tbody>
+    <tr>
+      <td>Url</td>
+      <td><span id="url"></span></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td><button type="button" id="sub" class="btn btn-primary">提交</button></td>
+    </tr>
+  </tbody>
+</table>
+<table class="talbe" id="response">
+  <tr>
+    <th>返回状态:&nbsp;&nbsp;&nbsp;&nbsp;<span id="response-status"></span></th>
+  </tr>
+  <tr>
+    <td>
+      <div style="height:300px;max-height:600px;" id="response-data"></div>
+    </td>
+  </tr>
+</table>
+
+<script type="text/javascript">
+  $(function(){
+    var group = [];
+    var groupArr = [];
+    $.getJSON("/doc/api_data.json",function(data){
+      $.each(data, function(key, value){
+        if(value.groupTitle.indexOf("_") != 0){
+          group.push(value.groupTitle);
+          if(groupArr[value.groupTitle] == undefined) {
+            groupArr[value.groupTitle] = [];
+          }
+          groupArr[value.groupTitle].push(value);
+        }
+      })
+      group = $.unique(group);
+      $.each(group, function(key, value){
+        $("#group").append('<option value='+value+'>'+value+'</option>');
+      })
+      chengeGroup($("#group").val())
+      $("#group").change(function(){
+        var curgroup= $(this).val();
+        chengeGroup(curgroup)
+      })
+      $("#title").change(function(){
+        var curtitle= $(this).val();
+        changeTitle(curtitle)
+      })
+      $("#sub").click(function(){
+        load();
+      })
+    })
+    function chengeGroup(curgroup){
+      $("#title option").remove();
+      $.each(groupArr[curgroup], function(key, value){
+        $("#title").append('<option value='+value["groupTitle"]+'|'+key+'|'+value["name"]+'>'+value["name"]+'--'+value["title"]+'</option>');
+      })
+      changeTitle($("#title").val());
+    }
+    function changeTitle(title){
+      title = title.split('|');
+      var curgroup = title[0];
+      var index = title[1];
+      var curtitle = title[2];
+      $("#fields tr").remove();
+      $("#url").text(window.location.origin+"/api/v1"+groupArr[curgroup][index]["url"]);
+      $("#method").text(groupArr[curgroup][index]["type"]);
+      if (groupArr[curgroup][index]["parameter"] == undefined){
+        return false;
+      }
+      var fields = groupArr[curgroup][index]["parameter"]["fields"]["Parameter"];
+      $.each(fields, function(key, value){
+        var html = '<tr>';
+        html += '<td>';
+        html += value.field;
+        html += '</td>';
+        html += '<td>';
+        html += '<input type="text" class="form-control" name="'+value.field+'">';
+        if(value.optional == false){
+          html += '<span style="color:red;">*</span>';
+        }
+        html += '<a href="#" title="'+value['description'].replace("<p>", "").replace("</p>","")+'">说明</a>'
+        html += '</td>';
+        html += '</tr>';
+        $("#fields").append(html);
+      })
+    }
+    function load(){
+      var url = $("#url").text();
+      var method = $("#method").text();
+      var fieldsInput = $("#fields").find("input");
+      var fields = {};
+      $.each(fieldsInput, function(key, value){
+        if(url.indexOf("/:"+$(value).attr("name"))  >= 0 ){
+          url = url.replace("/:"+$(value).attr("name"), "/"+$(value).val());
+        }else{
+          if($(value).val() != ""){
+            fields[$(value).attr("name")] = $(value).val();
+          }
+        }
+      })
+      $.ajax({
+        url: url,
+        type: method,
+        data: fields,
+        success: function(data, textStatus){
+          $("#response-status").html('<span style="color:green;">'+200+'&nbsp;&nbsp;&nbsp;&nbsp;'+textStatus+'</span>');
+          $("#response-data").html("<pre>"+JSON.stringify(data, null, 4)+"</pre>");
+        },
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+          var status = XMLHttpRequest.status;
+          var statusText = XMLHttpRequest.statusText;
+          var responseText = XMLHttpRequest.responseText;
+          $("#response-status").html('<span style="color:red;">'+status+'&nbsp;&nbsp;&nbsp;&nbsp;'+statusText+'</span>');
+          $("#response-data").html("<pre>"+responseText+"</pre>");
+        }
+      });
+    }
+  })
+</script>
